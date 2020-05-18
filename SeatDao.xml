@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.learn.dao.SeatDao">
+
+    <!-- 可根据自己的需求，是否要使用 -->
+    <resultMap type="com.learn.entity.SeatEntity" id="seatMap">
+        <result property="id" column="id"/>
+        <result property="no" column="no"/>
+        <result property="floor" column="floor"/>
+        <result property="state" column="state"/>
+        <result property="user" column="user"/>
+        <result property="ytime" column="ytime"/>
+    </resultMap>
+
+    <select id="queryObject" resultType="com.learn.entity.SeatEntity">
+		select * from seat where id = #{value}
+	</select>
+
+    <select id="queryList" resultType="com.learn.entity.SeatEntity">
+        select * from seat where 1=1
+        <if test="no != null and no != ''">
+            and no like '%${no}%'
+        </if>
+
+        <if test="user != null and user != ''">
+            and user = #{user}
+        </if>
+
+
+        <choose>
+            <when test="sidx != null and sidx.trim() != ''">
+                order by ${sidx} ${order}
+            </when>
+            <otherwise>
+                order by id desc
+            </otherwise>
+        </choose>
+        <if test="offset != null and limit != null">
+            limit #{offset}, #{limit}
+        </if>
+    </select>
+
+    <select id="queryTotal" resultType="int">
+        select count(*) from seat where 1=1
+        <if test="no != null and no != ''">
+            and no like '%${no}%'
+        </if>
+        <if test="user != null and user != ''">
+            and user = #{user}
+        </if>
+    </select>
+
+    <insert id="save" parameterType="com.learn.entity.SeatEntity">
+		insert into seat
+		(
+			`id`, 
+			`no`, 
+			`floor`, 
+			`state`, 
+			`user`, 
+			`ytime`
+		)
+		values
+		(
+			#{id}, 
+			#{no}, 
+			#{floor}, 
+			#{state}, 
+			#{user}, 
+			#{ytime}
+		)
+	</insert>
+
+    <update id="update" parameterType="com.learn.entity.SeatEntity">
+        update seat
+        <set>
+            <if test="no != null">`no` = #{no},</if>
+            <if test="floor != null">`floor` = #{floor},</if>
+            <if test="state != null">`state` = #{state},</if>
+            `user` = #{user},
+            `ytime` = #{ytime}
+        </set>
+        where id = #{id}
+    </update>
+
+    <delete id="delete">
+		delete from seat where id = #{value}
+	</delete>
+
+    <delete id="deleteBatch">
+        delete from seat where id in
+        <foreach item="id" collection="array" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+</mapper>
