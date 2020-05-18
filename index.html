@@ -1,1 +1,85 @@
 <h1> 网上停车系统</h1>
+public static void saveParkmsg2redis(String parkingspace, String mac, String status, String patrol,
+            String connectedparkingspace) {
+        ParkDao parkdao = new ParkDaoImpl();
+        String parkplace = parkdao.getsparkplace(mac);
+        Jedis jedis = RedisConnection.getJedis();
+        jedis.select(2);
+        Long starttime = System.currentTimeMillis();
+        String key = "parkingmsessage:" + mac;
+        String oldredisval = jedis.get("parkingmsessage:" + mac);
+        String redisval = "";
+        if (null != oldredisval && !"".equals(oldredisval)) {
+            String[] split = oldredisval.split(",");
+            String oldstatus = split[0];
+            String scantime = StringUtil.isnull(split[1]);
+
+            if ("1".equals(oldstatus) && "0".equals(status)) {
+                // 说明是车辆离开,信息存入sqlserver数据库
+                ParkMsg parkmsg = new ParkMsg();
+                parkmsg.setParkinglotbelong(parkplace);
+                String stringDate = getStringDate(starttime);
+                Long cartime = Long.parseLong(StringUtil.isnull(split[2]));
+                String msgid = StringUtil.isnull(split[3]);
+                ParkMsg oldparkmsg = parkdao.getParkMessageById(msgid);
+                // 计算停车用时
+                Long parktime = (starttime - cartime) / (1000 * 60);
+                // 计算停车费用
+                Double settlementParkPay = SettlementParkPay(parktime);
+                oldparkmsg.setParkingtime(parktime);
+                oldparkmsg.setParkingfee(settlementParkPay);
+                oldparkmsg.setEndtime(stringDate);
+                oldparkmsg.setParkingspace(connectedparkingspace);
+                oldparkmsg.setParkinglotbelong(parkplace);
+                oldparkmsg.setIdowner(patrol);
+                oldparkmsg.setId(msgid);
+                // 缴费状态枚举值
+                // TODO Auto-generated catch block
+                String paystatus = "0";// 先设置为未缴费
+                String paymentstate = getStateEnum(paystatus, "paymentstate", "parkingmessage");
+                // 所属停车场枚举值
+                String parspacestate = getStateEnum(status, "sparkspacestate", "parkspacemanage");
+                oldparkmsg.setPaymentstate(paymentstate);
+                // 存储新的停车信息
+                parkdao.UpdateParkmsg(oldparkmsg);
+                // 更新车位
+                Boolean reflashPKS = parkdao.updataParkingspace(connectedparkingspace, parspacestate);
+                redisval = status + "," + scantime + "," + "," + "," + "pk";
+                // 推送消息
+
+            } else if ("0".equals(oldstatus) && "1".equals(status)) {
+                // 说明是车辆停入车位,信息存入sqlserver数据库
+                ParkMsg parkmsg = new ParkMsg();
+                parkmsg.setParkinglotbelong(parkplace);
+                // Date changeTime2Date = changeTime2Date(starttime);
+                String stringDate = getStringDate(starttime);
+                System.out.println(stringDate);
+                SystemDao sd = new SystemDaoImpl();
+                String newId = sd.getNewId();
+                parkmsg.setId(newId);
+                parkmsg.setIdowner(patrol);
+                parkmsg.setStarttime(stringDate);
+                parkmsg.setParkingspace(connectedparkingspace);
+                // 缴费状态枚举值
+                String paystatus = "0";// 先设置为未缴费
+                String paymentstate = getStateEnum(paystatus, "paymentstate", "parkingmessage");
+                // 所属停车场枚举值
+                String parspacestate = getStateEnum(status, "sparkspacestate", "parkspacemanage");
+                parkmsg.setPaymentstate(paymentstate);
+                parkdao.InsertParkmsg(parkmsg);
+                Boolean reflashPKS = parkdao.updataParkingspace(connectedparkingspace, parspacestate);
+                redisval = status + "," + scantime + "," + starttime.toString() + "," + newId + "," + "pk";
+                // 推送消息
+                Operation2umDao umDao = new Operation2umDaoImpl();
+                Operation2um o2 = umDao.getOperation2umById("b5856391a3164ff2a8e3d56ce9bc5811", "geomagneticmonitor");
+                String iddata = "";
+                String ummsg = ""+"有车子停入了";
+                pushMessage("geomagneticmanage", iddata, "1B7AED0CEB5F4C669E5ED5F88C069B21", o2);
+            } else {
+                String cartime = StringUtil.isnull(split[2]);
+                String messageid = StringUtil.isnull(split[3]);
+                redisval = status + "," + scantime + "," + cartime.toString() + "," + messageid + "," + "pk";
+            }
+        } else {
+            redisval = status + "," + starttime.toString() + "," + starttime.toString() + "," + "," + "pk";
+        }
